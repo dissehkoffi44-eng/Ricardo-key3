@@ -4,9 +4,14 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 from collections import Counter
+import datetime # Importation nécessaire pour l'horodatage
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Ricardo_DJ228 | Precision V3 Ultra", page_icon="🎧", layout="wide")
+
+# --- INITIALISATION DE L'HISTORIQUE ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
 
 # --- DESIGN & CSS ---
 st.markdown("""
@@ -16,6 +21,8 @@ st.markdown("""
     .stMetric { background-color: #FFFFFF !important; border: 1px solid #E0E0E0 !important; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .alert-box { padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; background-color: #FFEBEB; color: #B30000; font-weight: bold; margin-bottom: 20px; }
     .success-box { padding: 15px; border-radius: 10px; border-left: 5px solid #28A745; background-color: #E8F5E9; color: #1B5E20; font-weight: bold; margin-bottom: 20px; }
+    /* Style pour le tableau d'historique */
+    .history-container { background-color: white; padding: 20px; border-radius: 15px; margin-top: 30px; border: 1px solid #DDD; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -98,7 +105,6 @@ if file:
     timeline_data = res["timeline"]
     dominante = res["dominante"]
     
-    # Calcul de la Synthèse
     note_weights = {}
     for d in timeline_data:
         n = d["Note_Mode"]
@@ -108,13 +114,26 @@ if file:
         tonique_synth = max(note_weights, key=note_weights.get)
         camelot = get_camelot_pro(tonique_synth)
         
+        # AJOUT À L'HISTORIQUE (Vérifie si déjà ajouté pour éviter les doublons au refresh)
+        history_entry = {
+            "Heure": datetime.datetime.now().strftime("%H:%M:%S"),
+            "Fichier": file.name,
+            "Key": tonique_synth,
+            "Camelot": camelot,
+            "BPM": int(res['tempo']),
+            "Energie": res['energy']
+        }
+        
+        if not st.session_state.history or st.session_state.history[-1]["Fichier"] != file.name:
+            st.session_state.history.append(history_entry)
+
         # --- ALERTES ---
         if dominante != tonique_synth:
             st.markdown(f'<div class="alert-box">⚠️ ANALYSE COMPLEXE : La dominante ({dominante}) diffère de la tonique globale ({tonique_synth}).</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="success-box">✅ ANALYSE STABLE : Les deux méthodes confirment la même tonalité.</div>', unsafe_allow_html=True)
 
-        # --- MÉTRIQUES À 5 COLONNES ---
+        # --- MÉTRIQUES ---
         cols = st.columns(5)
         cols[0].metric("VOTE (Majorité)", dominante)
         cols[1].metric("TONIQUE (Synthèse)", tonique_synth)
@@ -122,14 +141,38 @@ if file:
         cols[3].metric("BPM", int(res['tempo']))
         cols[4].metric("ÉNERGIE", f"{res['energy']}/10")
 
-        # --- BOUTON DE TÉLÉCHARGEMENT ---
+        # --- BOUTONS ---
+        c1, c2 = st.columns(2)
         report_text = f"RAPPORT ANALYSE RICARDO_DJ228\nMorceau: {file.name}\nDominante: {dominante}\nTonique Synthèse: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}\nEnergie: {res['energy']}/10"
-        st.download_button(label="📥 Télécharger le rapport", data=report_text, file_name=f"Analyse_{file.name}.txt", mime="text/plain")
+        c1.download_button(label="📥 Télécharger le rapport actuel", data=report_text, file_name=f"Analyse_{file.name}.txt", mime="text/plain")
 
         # --- GRAPHIQUE ---
         df = pd.DataFrame(timeline_data)
         fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
-                         title=f"Nuage de Stabilité Harmonique : {file.name}")
+                          title=f"Nuage de Stabilité Harmonique : {file.name}")
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Analyse impossible : le signal audio est trop complexe ou trop court.")
+
+# --- SECTION HISTORIQUE ---
+if st.session_state.history:
+    st.markdown("---")
+    st.markdown("### 🕒 Historique de la Session")
+    
+    df_hist = pd.DataFrame(st.session_state.history)
+    
+    # Affichage du tableau
+    st.table(df_hist)
+    
+    # Bouton pour télécharger l'historique complet en CSV
+    csv = df_hist.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📂 Télécharger l'historique complet (CSV)",
+        data=csv,
+        file_name="historique_analyses_ricardo.csv",
+        mime="text/csv",
+    )
+    
+    if st.button("🗑️ Effacer l'historique"):
+        st.session_state.history = []
+        st.rerun()
