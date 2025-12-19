@@ -9,62 +9,42 @@ from datetime import datetime
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Ricardo_DJ228 | Precision V3 Ultra", page_icon="🎧", layout="wide")
 
-# Initialisation de l'historique de session
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- DESIGN : INTERFACE CLAIRE ET LISIBLE ---
+# --- DESIGN ---
 st.markdown("""
     <style>
     .stApp { background-color: #F8F9FA; color: #212529; }
-    h1 { font-family: 'Segoe UI', sans-serif; color: #1A1A1A; text-align: center; font-weight: 800; padding-bottom: 10px; }
-    div[data-testid="stMetricValue"] { color: #D4AF37 !important; font-weight: bold; }
-    .stMetric { 
-        background-color: #FFFFFF !important; 
-        border: 1px solid #E0E0E0 !important; 
-        border-radius: 12px; 
-        padding: 15px; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .history-card { 
-        background-color: #FFFFFF; 
-        padding: 15px; 
-        border-radius: 10px; 
-        border-left: 5px solid #D4AF37; 
-        margin-bottom: 10px; 
-        color: #333;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        font-size: 1.05rem;
-    }
-    .stExpander { border: 1px solid #E0E0E0 !important; background-color: #FFFFFF !important; border-radius: 10px !important; }
-    p { font-size: 1.1rem; color: #444; }
+    h1 { font-family: 'Segoe UI', sans-serif; color: #1A1A1A; text-align: center; font-weight: 800; }
+    .stMetric { background-color: #FFFFFF !important; border: 1px solid #E0E0E0 !important; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .alert-box { padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; background-color: #FFEBEB; color: #B30000; font-weight: bold; margin-bottom: 20px; }
+    .success-box { padding: 15px; border-radius: 10px; border-left: 5px solid #28A745; background-color: #E8F5E9; color: #1B5E20; font-weight: bold; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MAPPING CAMELOT CORRIGÉ ---
+# --- MAPPING CAMELOT ---
 BASE_CAMELOT_MINOR = {
     'Ab': '1A', 'G#': '1A', 'Eb': '2A', 'D#': '2A', 'Bb': '3A', 'A#': '3A',
     'F': '4A', 'C': '5A', 'G': '6A', 'D': '7A', 'A': '8A', 'E': '9A',
     'B': '10A', 'Cb': '10A', 'F#': '11A', 'Gb': '11A', 'Db': '12A', 'C#': '12A'
 }
-
 BASE_CAMELOT_MAJOR = {
     'B': '1B', 'Cb': '1B', 'F#': '2B', 'Gb': '2B', 'Db': '3B', 'C#': '3B',
     'Ab': '4B', 'G#': '4B', 'Eb': '5B', 'D#': '5B', 'Bb': '6B', 'A#': '6B',
     'F': '7B', 'C': '8B', 'G': '9B', 'D': '10B', 'A': '11B', 'E': '12B'
 }
 
-FREQS = {'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63, 'F': 349.23, 
-         'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88}
+def get_camelot_pro(key_mode_str):
+    try:
+        parts = key_mode_str.split(" ")
+        key, mode = parts[0], parts[1].lower()
+        if mode in ['minor', 'dorian']:
+            return BASE_CAMELOT_MINOR.get(key, "??")
+        return BASE_CAMELOT_MAJOR.get(key, "??")
+    except: return "??"
 
-def get_camelot_pro(key, mode):
-    # Mode mineur ou Dorian (basé sur mineur)
-    if mode in ['minor', 'dorian']:
-        return BASE_CAMELOT_MINOR.get(key, "Inconnu")
-    # Mode majeur
-    return BASE_CAMELOT_MAJOR.get(key, "Inconnu")
-
-# --- CALCUL DE L'ÉNERGIE (1-10) ---
+# --- MOTEURS DE CALCUL ---
 def calculate_energy(y, sr):
     rms = np.mean(librosa.feature.rms(y=y))
     rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
@@ -72,17 +52,10 @@ def calculate_energy(y, sr):
     energy_score = (rms * 28) + (rolloff / 1100) + (float(tempo) / 160)
     return int(np.clip(energy_score, 1, 10))
 
-# --- MOTEUR D'ANALYSE ULTRA-PRÉCISION ---
-def analyze_ultra_precision(y, sr):
-    # 1. Compensation de Tuning
+def analyze_segment(y, sr):
     tuning = librosa.estimate_tuning(y=y, sr=sr)
-    
-    # 2. Filtrage Percussif (HPSS)
-    y_harmonic, _ = librosa.effects.hpss(y, margin=(3.0, 1.0))
-    
-    # 3. Calcul Chroma CQT avec correction Tuning et fmin (C2)
-    chroma = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr, bins_per_octave=24, 
-                                       tuning=tuning, fmin=librosa.note_to_hz('C2'))
+    y_harm, _ = librosa.effects.hpss(y, margin=(3.0, 1.0))
+    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, tuning=tuning, fmin=librosa.note_to_hz('C2'))
     chroma_avg = np.mean(chroma, axis=1)
     
     NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -92,87 +65,63 @@ def analyze_ultra_precision(y, sr):
         "dorian": [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.98, 3.34, 3.17]
     }
     
-    best_score, res_key, res_mode = -1, "", ""
+    best_s, res_k, res_m = -1, "", ""
     for mode, profile in PROFILES.items():
         for i in range(12):
             score = np.corrcoef(chroma_avg, np.roll(profile, i))[0, 1]
-            if score > best_score:
-                best_score, res_key, res_mode = score, NOTES[i], mode
-    return res_key, res_mode, best_score, tuning
+            if score > best_s:
+                best_s, res_k, res_m = score, NOTES[i], mode
+    return f"{res_k} {res_m}", best_s
 
-# --- INTERFACE UTILISATEUR ---
-st.markdown("<h1>RICARDO_DJ228 | PRECISION V3 ULTRA</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Mapping Camelot Pro • Correction Tuning • Analyse Dorian • Énergie 1-10</p>", unsafe_allow_html=True)
+# --- INTERFACE ---
+st.markdown("<h1>RICARDO_DJ228 | SYNTHÈSE ULTRA V3</h1>", unsafe_allow_html=True)
 
 files = st.file_uploader("", type=['mp3', 'wav', 'flac'], accept_multiple_files=True)
 
 if files:
     for file in files:
         with st.expander(f"📂 ANALYSE : {file.name}", expanded=True):
-            with st.spinner("Analyse spectrale en cours..."):
-                y_full, sr = librosa.load(file)
-                duration = librosa.get_duration(y=y_full, sr=sr)
-                tempo, _ = librosa.beat.beat_track(y=y_full, sr=sr)
-                energy = calculate_energy(y_full, sr)
+            y, sr = librosa.load(file)
+            duration = librosa.get_duration(y=y, sr=sr)
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            
+            timeline_data = []
+            votes = []
+            
+            for start_t in range(0, int(duration) - 15, 10):
+                seg, score = analyze_segment(y[int(start_t*sr):int((start_t+15)*sr)], sr)
+                if score > 0.45:
+                    votes.append(seg)
+                    timeline_data.append({"Temps": start_t, "Note_Mode": seg, "Confiance": score})
+
+            if votes:
+                # 1. Note la plus répétée (DOMINANTE)
+                dominante = Counter(votes).most_common(1)[0][0]
                 
-                votes, timeline_data, tunings = [], [], []
+                # 2. Note la plus "propre" (TONIQUE DE SYNTHÈSE)
+                note_weights = {}
+                for d in timeline_data:
+                    n = d["Note_Mode"]
+                    note_weights[n] = note_weights.get(n, 0) + d["Confiance"]
+                tonique_synth = max(note_weights, key=note_weights.get)
                 
-                for start_t in range(0, int(duration) - 15, 10):
-                    start_s, end_s = int(start_t * sr), int((start_t + 15) * sr)
-                    key, mode, score, t_shift = analyze_ultra_precision(y_full[start_s:end_s], sr)
-                    
-                    if score > 0.45:
-                        m_label = "m" if mode == "minor" else ("-Dor" if mode == "dorian" else "")
-                        votes.append(f"{key} {mode}")
-                        timeline_data.append({
-                            "Temps": start_t, 
-                            "Note": f"{key}{m_label}", 
-                            "Mode": mode, 
-                            "Confiance": score
-                        })
-                        tunings.append(t_shift)
-
-                if votes:
-                    final_decision = Counter(votes).most_common(1)[0][0]
-                    f_key, f_mode = final_decision.split(" ")
-                    f_camelot = get_camelot_pro(f_key, f_mode)
-                    
-                    st.session_state.history.insert(0, {
-                        "Nom": file.name, "Cle": f"{f_key} {f_mode.upper()}",
-                        "Camelot": f_camelot, "BPM": int(float(tempo)), "Energy": energy
-                    })
-
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("TONALITÉ", f"{f_key} {f_mode.upper()}")
-                    c2.metric("CAMELOT", f_camelot)
-                    c3.metric("ÉNERGIE", f"{energy}/10")
-                    c4.metric("TEMPO", f"{int(float(tempo))} BPM")
-
-                    st.markdown("### 📊 Stabilité Harmonique")
-                    df_plot = pd.DataFrame(timeline_data)
-                    fig = px.scatter(df_plot, x="Temps", y="Note", color="Mode", size="Confiance",
-                                     color_discrete_map={"major": "#D4AF37", "minor": "#4A90E2", "dorian": "#A259FF"})
-                    fig.update_layout(plot_bgcolor='#FDFDFD', paper_bgcolor='white', font_color='#333')
-                    st.plotly_chart(fig, use_container_width=True)
-
-                    st.markdown("### 🔊 Vérification Auditive")
-                    v1, v2 = st.columns(2)
-                    with v1: st.audio(file)
-                    with v2:
-                        target_f = FREQS.get(f_key, 440.0)
-                        tone = 0.4 * np.sin(2 * np.pi * target_f * np.linspace(0, 3, int(22050 * 3)))
-                        st.audio(tone, sample_rate=22050)
+                # Alerte de modulation
+                if dominante != tonique_synth:
+                    st.markdown(f'<div class="alert-box">⚠️ ATTENTION : Modulation détectée ! Dominante mathématique ({dominante}) ≠ Tonique de synthèse ({tonique_synth}). Mixage délicat.</div>', unsafe_allow_html=True)
                 else:
-                    st.warning("Signal complexe détecté.")
+                    st.markdown('<div class="success-box">✅ STABILITÉ : Tonalité constante détectée sur l\'ensemble du morceau.</div>', unsafe_allow_html=True)
 
-if st.session_state.history:
-    st.divider()
-    st.subheader("📜 Historique de session")
-    for item in st.session_state.history:
-        st.markdown(f"""
-        <div class="history-card">
-            <b>{item['Nom']}</b> | 
-            <span style="color:#D4AF37; font-weight:bold;">{item['Cle']} ({item['Camelot']})</span> | 
-            {item['BPM']} BPM | <b>Énergie: {item['Energy']}/10</b>
-        </div>
-        """, unsafe_allow_html=True)
+                # Métriques
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("DOMINANTE", dominante)
+                c2.metric("TONIQUE SYNTHÈSE", tonique_synth)
+                c3.metric("CAMELOT", get_camelot_pro(tonique_synth))
+                c4.metric("TEMPO", f"{int(float(tempo))} BPM")
+
+                # Graphique
+                df = pd.DataFrame(timeline_data)
+                fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode", title="Analyse de Densité Harmonique")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Historique
+                st.session_state.history.insert(0, {"Nom": file.name, "Key": tonique_synth, "Cam": get_camelot_pro(tonique_synth)})
