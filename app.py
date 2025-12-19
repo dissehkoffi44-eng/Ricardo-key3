@@ -2,112 +2,142 @@ import streamlit as st
 import librosa
 import numpy as np
 import pandas as pd
+import plotly.express as px
+from collections import Counter
+from datetime import datetime
+import io
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="RICARDO_DJ228 | Global Analyzer", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Ricardo_DJ228 | Precision V3", page_icon="🎧", layout="wide")
 
 # Initialisation de l'historique
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- CSS HAUTE LISIBILITÉ ---
+# CSS Thème Studio Dark/Wood
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-    .stApp { background-color: #0F0F0F; font-family: 'Inter', sans-serif; }
-    h1 { color: #FFFFFF; font-weight: 900; text-align: center; font-size: 3.5rem !important; }
-    .sub-text { color: #BB86FC; text-align: center; font-size: 1.3rem; margin-bottom: 2rem; }
-
-    /* ZONE UPLOAD */
-    .stFileUploader section { background-color: #1A1A1A !important; border: 2px dashed #BB86FC !important; border-radius: 20px !important; padding: 3rem !important; }
-    .stFileUploader section [data-testid="stMarkdownContainer"] p { color: #FFFFFF !important; font-size: 1.5rem !important; font-weight: 700 !important; }
-    .stFileUploader button { background-color: #FFFFFF !important; color: #000000 !important; font-weight: 900 !important; font-size: 1.1rem !important; border-radius: 10px !important; }
-
-    /* CARTES RÉSULTATS */
-    div[data-testid="stMetric"] { background-color: #1A1A1A; border: 1px solid #333333; border-radius: 16px; padding: 25px !important; }
-    div[data-testid="stMetricLabel"] { color: #BB86FC !important; font-size: 1.1rem !important; font-weight: 600; }
-    div[data-testid="stMetricValue"] { color: #FFFFFF !important; font-size: 2.5rem !important; font-weight: 800; }
-
-    /* TABLEAU */
-    .stTable { background-color: #1A1A1A; border-radius: 12px; }
-    thead tr th { background-color: #252525 !important; color: #BB86FC !important; }
+    .stApp { background-color: #121212; color: #E0E0E0; }
+    h1 { font-family: 'serif'; color: #D4AF37; text-align: center; text-shadow: 2px 2px 4px #000; }
+    .stMetric { background-color: #1E1E1E !important; border-left: 5px solid #D4AF37 !important; border-radius: 10px; padding: 15px; }
+    .history-card { background-color: #1E1E1E; padding: 12px; border-radius: 8px; border-bottom: 1px solid #333; margin-bottom: 8px; color: #BBB; }
+    .stExpander { border: 1px solid #333 !important; background-color: #181818 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIQUE MUSICALE ---
+# --- MAPPING CAMELOT ---
+BASE_CAMELOT = {
+    'B': '1', 'Cb': '1', 'F#': '2', 'Gb': '2', 'Db': '3', 'C#': '3', 
+    'Ab': '4', 'G#': '4', 'Eb': '5', 'D#': '5', 'Bb': '6', 'A#': '6', 
+    'F': '7', 'C': '8', 'G': '9', 'D': '10', 'A': '11', 'E': '12'
+}
+
+def get_camelot_pro(key, mode):
+    if key == 'B' and mode in ['minor', 'dorian']: return "10A"
+    number = BASE_CAMELOT.get(key, "1")
+    letter = "A" if mode in ['minor', 'dorian'] else "B"
+    return f"{number}{letter}"
+
+# --- MOTEUR D'ANALYSE HAUTE PRÉCISION ---
 NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
-MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+PROFILES = {
+    "major": [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88],
+    "minor": [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17],
+    "dorian": [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.98, 3.34, 3.17]
+}
 
-def get_camelot(key, mode):
-    camelot_map = {
-        'G# minor': '1A', 'Ab minor': '1A', 'B major': '1B', 'Cb major': '1B',
-        'D# minor': '2A', 'Eb minor': '2A', 'F# major': '2B', 'Gb major': '2B',
-        'Bb minor': '3A', 'A# minor': '3A', 'Db major': '3B', 'C# major': '3B',
-        'F minor': '4A', 'Ab major': '4B', 'C minor': '5A', 'Eb major': '5B',
-        'G minor': '6A', 'Bb major': '6B', 'D minor': '7A', 'F major': '7B',
-        'A minor': '8A', 'C major': '8B', 'E minor': '9A', 'G major': '9B',
-        'B minor': '10A', 'D major': '10B', 'F# minor': '11A', 'Gb minor': '11A', 'A major': '11B',
-        'C# minor': '12A', 'Db minor': '12A', 'E major': '12B'
-    }
-    return camelot_map.get(f"{key} {mode}", "1A")
-
-def analyze_global(y, sr):
-    # Séparation harmonique (pour isoler les mélodies)
-    y_harm = librosa.effects.hpss(y)[0]
-    # Calcul du chromagramme global sur tout le fichier
-    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr)
+def analyze_ultra_precision(y, sr):
+    # 1. Isolation harmonique renforcée (marge élevée pour ignorer les percussions)
+    y_harm = librosa.effects.harmonic(y, margin=4.0)
+    
+    # 2. Chroma CQT (plus précis musicalement que le Chroma STFT)
+    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, bins_per_octave=24)
     chroma_avg = np.mean(chroma, axis=1)
     
     best_score = -1
     res_key, res_mode = "", ""
-    for i in range(12):
-        for mode, profile in [("major", MAJOR_PROFILE), ("minor", MINOR_PROFILE)]:
+    
+    for mode, profile in PROFILES.items():
+        for i in range(12):
             score = np.corrcoef(chroma_avg, np.roll(profile, i))[0, 1]
             if score > best_score:
                 best_score, res_key, res_mode = score, NOTES[i], mode
-    return res_key, res_mode
+    return res_key, res_mode, best_score
 
 # --- INTERFACE ---
-st.markdown("<h1>RICARDO_DJ228</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub-text'>Analyseur de Tonalité Globale Dominante</p>", unsafe_allow_html=True)
+st.markdown("<h1>RICARDO_DJ228 PRECISION ANALYZER V3</h1>", unsafe_allow_html=True)
+files = st.file_uploader("Déposez vos morceaux (Analyse haute précision)", type=['mp3', 'wav', 'flac'], accept_multiple_files=True)
 
-file = st.file_uploader(" ", type=['mp3', 'wav', 'flac'])
+if files:
+    for file in files:
+        with st.expander(f"🎼 Étude harmonique : {file.name}", expanded=True):
+            with st.spinner("Analyse spectrale profonde..."):
+                y_full, sr = librosa.load(file)
+                duration = librosa.get_duration(y=y_full, sr=sr)
+                tempo, _ = librosa.beat.beat_track(y=y_full, sr=sr)
+                
+                votes = []
+                timeline_data = []
+                
+                # Analyse par fenêtres de 15s avec saut de 10s (overlap pour précision)
+                for start_t in range(0, int(duration) - 15, 10):
+                    start_s = start_t * sr
+                    end_s = (start_t + 15) * sr
+                    key, mode, score = analyze_ultra_precision(y_full[start_s:end_s], sr)
+                    
+                    if score > 0.5: # Seuil de confiance
+                        votes.append(f"{key} {mode}")
+                        timeline_data.append({"Temps": start_t, "Note": key, "Mode": mode, "Confiance": score})
 
-if file:
-    with st.spinner("🚀 Analyse globale du signal..."):
-        y, sr = librosa.load(file)
-        
-        # Analyse unique sur l'ensemble du fichier
-        final_key, final_mode = analyze_global(y, sr)
-        
-        # Calcul Tempo & Camelot
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-        bpm = int(round(float(tempo)))
-        camelot = get_camelot(final_key, final_mode)
+                if votes:
+                    # Décision finale par majorité statistique (Stabilité)
+                    final_decision = Counter(votes).most_common(1)[0][0]
+                    f_key, f_mode = final_decision.split(" ")
+                    f_camelot = get_camelot_pro(f_key, f_mode)
+                    
+                    # Logique de sauvegarde
+                    st.session_state.history.insert(0, {
+                        "Heure": datetime.now().strftime("%H:%M"),
+                        "Nom": file.name,
+                        "Cle": f"{f_key} {f_mode.upper()}",
+                        "Camelot": f_camelot,
+                        "BPM": int(float(tempo))
+                    })
 
-        # Historique
-        entry = {"Fichier": file.name, "Key": f"{final_key} {final_mode.upper()}", "Camelot": camelot, "BPM": bpm}
-        if not st.session_state.history or st.session_state.history[0]['Fichier'] != file.name:
-            st.session_state.history.insert(0, entry)
+                    # Affichage
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("CLÉ STABLE", f"{f_key} {f_mode.upper()}")
+                    c2.metric("NOTATION CAMELOT", f_camelot)
+                    c3.metric("TEMPO BPM", f"{int(float(tempo))}")
 
-        # Résultats
-        st.markdown("<br>", unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Tonalité Dominante", entry["Key"])
-        c2.metric("Code Camelot", camelot)
-        c3.metric("Tempo", f"{bpm} BPM")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.audio(file)
+                    # Visualisation
+                    df_plot = pd.DataFrame(timeline_data)
+                    fig = px.scatter(df_plot, x="Temps", y="Note", color="Mode", size="Confiance",
+                                     title=f"Nuage de stabilité harmonique - {file.name}",
+                                     color_discrete_sequence=["#D4AF37", "#4A90E2"],
+                                     category_orders={"Note": NOTES})
+                    fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.audio(file)
+                else:
+                    st.warning("Impossible d'extraire une tonalité stable pour ce fichier.")
 
-# --- HISTORIQUE ---
-st.markdown("<br><hr style='border: 1px solid #333333;'><br>", unsafe_allow_html=True)
-st.markdown("### 🕒 Historique des Analyses")
-
+# --- HISTORIQUE & EXPORT ---
+st.divider()
 if st.session_state.history:
-    df_history = pd.DataFrame(st.session_state.history)
-    st.table(df_history)
-    if st.button("🗑️ Effacer l'historique"):
-        st.session_state.history = []
-        st.rerun()
+    col_h1, col_h2 = st.columns([1, 4])
+    with col_h1:
+        csv = pd.DataFrame(st.session_state.history).to_csv(index=False).encode('utf-8')
+        st.download_button("📥 EXPORTER CSV", csv, "export_dj_set.csv", "text/csv")
+    with col_h2:
+        if st.button("🗑️ VIDER L'HISTORIQUE"):
+            st.session_state.history = []
+            st.rerun()
+
+    for item in st.session_state.history:
+        st.markdown(f"""
+        <div class="history-card">
+            <b>{item['Heure']}</b> | {item['Nom']} | <span style="color:#D4AF37">{item['Cle']} ({item['Camelot']})</span> | {item['BPM']} BPM
+        </div>
+        """, unsafe_allow_html=True)
