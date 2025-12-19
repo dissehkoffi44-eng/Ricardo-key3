@@ -6,20 +6,65 @@ import plotly.express as px
 from collections import Counter
 
 # --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="Ricardo_DJ228 | Precision V3 Ultra", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Ricardo_DJ228 | Pro Analyzer", page_icon="🎧", layout="wide")
 
-# --- DESIGN & CSS ---
+# --- DESIGN PERSONNALISÉ (THÈME DARK PRO & GOLD) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F8F9FA; color: #212529; }
-    h1 { font-family: 'Segoe UI', sans-serif; color: #1A1A1A; text-align: center; font-weight: 800; }
-    .stMetric { background-color: #FFFFFF !important; border: 1px solid #E0E0E0 !important; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .alert-box { padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; background-color: #FFEBEB; color: #B30000; font-weight: bold; margin-bottom: 20px; }
-    .success-box { padding: 15px; border-radius: 10px; border-left: 5px solid #28A745; background-color: #E8F5E9; color: #1B5E20; font-weight: bold; margin-bottom: 20px; }
+    /* Fond principal sombre */
+    .stApp { 
+        background-color: #0E1117; 
+        color: #FFFFFF; 
+    }
+    /* Titre Principal */
+    h1 { 
+        font-family: 'Helvetica Neue', sans-serif; 
+        color: #FFD700; /* Or */
+        text-align: center; 
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        text-shadow: 2px 2px 10px rgba(255, 215, 0, 0.3);
+    }
+    /* Style des cartes de métriques */
+    div[data-testid="stMetricValue"] { 
+        color: #FFD700 !important; 
+        font-size: 28px !important;
+    }
+    div[data-testid="stMetricLabel"] { 
+        color: #A0A0A0 !important; 
+        font-size: 14px !important;
+        text-transform: uppercase;
+    }
+    .stMetric {
+        background-color: #1A1C24 !important;
+        border: 1px solid #30333D !important;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    /* Alertes personnalisées */
+    .alert-box { 
+        padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; 
+        background-color: #2D1B1B; color: #FF8080; font-weight: bold; margin-bottom: 20px; 
+    }
+    .success-box { 
+        padding: 15px; border-radius: 10px; border-left: 5px solid #00C853; 
+        background-color: #1B2D1B; color: #80FFAD; font-weight: bold; margin-bottom: 20px; 
+    }
+    /* Bouton Téléchargement */
+    .stDownloadButton button {
+        background-color: #FFD700 !important;
+        color: #0E1117 !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        border: none !important;
+        width: 100%;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MAPPING CAMELOT (F#m=11A, D#m=2A) ---
+# --- MAPPING CAMELOT ---
 BASE_CAMELOT_MINOR = {
     'Ab': '1A', 'G#': '1A', 'Eb': '2A', 'D#': '2A', 'Bb': '3A', 'A#': '3A',
     'F': '4A', 'C': '5A', 'G': '6A', 'D': '7A', 'A': '8A', 'E': '9A',
@@ -89,9 +134,9 @@ def get_single_analysis(file_buffer):
             "timeline": timeline_data, "tempo": int(float(tempo)), "energy": energy}
 
 # --- INTERFACE ---
-st.markdown("<h1>RICARDO_DJ228 | ANALYSEUR V3</h1>", unsafe_allow_html=True)
+st.markdown("<h1>RICARDO_DJ228 | V3 ULTRA ANALYZER</h1>", unsafe_allow_html=True)
 
-file = st.file_uploader("Importer un fichier audio", type=['mp3', 'wav', 'flac'], accept_multiple_files=False)
+file = st.file_uploader("", type=['mp3', 'wav', 'flac'], accept_multiple_files=False)
 
 if file:
     res = get_single_analysis(file)
@@ -110,26 +155,26 @@ if file:
         
         # --- ALERTES ---
         if dominante != tonique_synth:
-            st.markdown(f'<div class="alert-box">⚠️ ANALYSE COMPLEXE : La dominante ({dominante}) diffère de la tonique globale ({tonique_synth}).</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert-box">⚠️ MODULATION : Dominante ({dominante}) vs Tonique Synthèse ({tonique_synth}).</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Les deux méthodes confirment la même tonalité.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Tonalité confirmée à 100%.</div>', unsafe_allow_html=True)
 
-        # --- MÉTRIQUES À 5 COLONNES ---
+        # --- MÉTRIQUES ---
         cols = st.columns(5)
-        cols[0].metric("VOTE (Majorité)", dominante)
-        cols[1].metric("TONIQUE (Synthèse)", tonique_synth)
-        cols[2].metric("CODE CAMELOT", camelot)
+        cols[0].metric("VOTE MAJORITÉ", dominante)
+        cols[1].metric("TONIQUE RÉELLE", tonique_synth)
+        cols[2].metric("CAMELOT", camelot)
         cols[3].metric("BPM", int(res['tempo']))
         cols[4].metric("ÉNERGIE", f"{res['energy']}/10")
 
-        # --- BOUTON DE TÉLÉCHARGEMENT ---
-        report_text = f"RAPPORT ANALYSE RICARDO_DJ228\nMorceau: {file.name}\nDominante: {dominante}\nTonique Synthèse: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}\nEnergie: {res['energy']}/10"
-        st.download_button(label="📥 Télécharger le rapport", data=report_text, file_name=f"Analyse_{file.name}.txt", mime="text/plain")
+        # --- ZONE DE TÉLÉCHARGEMENT ---
+        st.markdown("---")
+        report_text = f"RAPPORT RICARDO_DJ228\nMorceau: {file.name}\nTonique: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}"
+        st.download_button(label="📥 TÉLÉCHARGER LE RAPPORT .TXT", data=report_text, file_name=f"RicardoDJ_{file.name}.txt")
 
-        # --- GRAPHIQUE ---
+        # --- GRAPHIQUE DARK ---
         df = pd.DataFrame(timeline_data)
         fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
-                         title=f"Nuage de Stabilité Harmonique : {file.name}")
+                         template="plotly_dark", title="STABILITÉ HARMONIQUE")
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error("Analyse impossible : le signal audio est trop complexe ou trop court.")
