@@ -19,7 +19,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- MAPPING CAMELOT CORRIGÉ (F#m=11A, D#m=2A) ---
+# --- MAPPING CAMELOT (F#m=11A, D#m=2A) ---
 BASE_CAMELOT_MINOR = {
     'Ab': '1A', 'G#': '1A', 'Eb': '2A', 'D#': '2A', 'Bb': '3A', 'A#': '3A',
     'F': '4A', 'C': '5A', 'G': '6A', 'D': '7A', 'A': '8A', 'E': '9A',
@@ -69,9 +69,9 @@ def analyze_segment(y, sr):
                 best_s, res_k, res_m = score, NOTES[i], mode
     return f"{res_k} {res_m}", best_s
 
-# --- FONCTION DE CACHE ---
-@st.cache_data(show_spinner=False)
-def get_full_analysis(file_buffer, file_name):
+# --- FONCTION D'ANALYSE ---
+@st.cache_data(show_spinner="Analyse harmonique en cours...")
+def get_single_analysis(file_buffer):
     y, sr = librosa.load(file_buffer)
     duration = librosa.get_duration(y=y, sr=sr)
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
@@ -89,51 +89,47 @@ def get_full_analysis(file_buffer, file_name):
             "timeline": timeline_data, "tempo": int(float(tempo)), "energy": energy}
 
 # --- INTERFACE ---
-st.markdown("<h1>RICARDO_DJ228 | ANALYSEUR DE TONIQUE V3</h1>", unsafe_allow_html=True)
+st.markdown("<h1>RICARDO_DJ228 | ANALYSEUR V3</h1>", unsafe_allow_html=True)
 
-uploaded_files = st.file_uploader("Glissez vos morceaux ici", type=['mp3', 'wav', 'flac'], accept_multiple_files=True)
+# Accept_multiple_files mis à False
+file = st.file_uploader("Choisissez un morceau (MP3, WAV, FLAC)", type=['mp3', 'wav', 'flac'], accept_multiple_files=False)
 
-if uploaded_files:
-    # On inverse pour que le dernier fichier soit en haut
-    for file in reversed(uploaded_files):
-        with st.expander(f"📂 ANALYSE : {file.name}", expanded=True):
-            res = get_full_analysis(file, file.name)
-            
-            timeline_data = res["timeline"]
-            dominante = res["dominante"]
-            
-            # --- SYNTHÈSE DE TOUTES LES NOTES POUR LA TONIQUE ---
-            note_weights = {}
-            for d in timeline_data:
-                n = d["Note_Mode"]
-                note_weights[n] = note_weights.get(n, 0) + d["Confiance"]
-            
-            if note_weights:
-                # La tonique de synthèse est la note la plus "pesante" mélodiquement
-                tonique_synth = max(note_weights, key=note_weights.get)
-                
-                # --- AFFICHAGE ALERTES ---
-                if dominante != tonique_synth:
-                    st.markdown(f'<div class="alert-box">⚠️ MODULATION : Dominante ({dominante}) vs Tonique Synthèse ({tonique_synth})</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="success-box">✅ STABILITÉ HARMONIQUE : La tonique est confirmée.</div>', unsafe_allow_html=True)
+if file:
+    res = get_single_analysis(file)
+    
+    timeline_data = res["timeline"]
+    dominante = res["dominante"]
+    
+    # --- SYNTHÈSE DE LA TONIQUE ---
+    note_weights = {}
+    for d in timeline_data:
+        n = d["Note_Mode"]
+        note_weights[n] = note_weights.get(n, 0) + d["Confiance"]
+    
+    if note_weights:
+        tonique_synth = max(note_weights, key=note_weights.get)
+        
+        # --- ALERTES ---
+        if dominante != tonique_synth:
+            st.markdown(f'<div class="alert-box">⚠️ MODULATION DÉTECTÉE : Dominante ({dominante}) vs Tonique Synthèse ({tonique_synth})</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="success-box">✅ STABILITÉ HARMONIQUE : Tonique confirmée.</div>', unsafe_allow_html=True)
 
-                # --- MÉTRIQUES DOUBLE NOTES ---
-                c1, c2, c3, c4 = st.columns(4)
-                with c1:
-                    st.metric("DOMINANTE (Vote)", dominante)
-                    st.caption("Note la plus fréquente")
-                with c2:
-                    st.metric("TONIQUE (Synthèse)", tonique_synth)
-                    st.caption("Résultat de la synthèse")
-                with c3:
-                    st.metric("CODE CAMELOT", get_camelot_pro(tonique_synth))
-                    st.caption("Basé sur la Tonique")
-                with c4:
-                    st.metric("BPM / ÉNERGIE", f"{res['tempo']} / {res['energy']}")
+        # --- MÉTRIQUES ---
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("DOMINANTE (Vote)", dominante)
+        with c2:
+            st.metric("TONIQUE (Synthèse)", tonique_synth)
+        with c3:
+            st.metric("CODE CAMELOT", get_camelot_pro(tonique_synth))
+        with c4:
+            st.metric("BPM / ÉNERGIE", f"{res['tempo']} / {res['energy']}")
 
-                # --- GRAPHIQUE ---
-                df = pd.DataFrame(timeline_data)
-                fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
-                                 title="Stabilité structurelle du morceau")
-                st.plotly_chart(fig, use_container_width=True)
+        # --- GRAPHIQUE ---
+        df = pd.DataFrame(timeline_data)
+        fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
+                         title=f"Analyse structurelle : {file.name}")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("Analyse impossible : le signal audio est trop complexe ou trop court.")
