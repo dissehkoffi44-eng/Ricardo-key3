@@ -106,6 +106,7 @@ if file:
     
     if note_weights:
         tonique_synth = max(note_weights, key=note_weights.get)
+        camelot = get_camelot_pro(tonique_synth)
         
         # --- ALERTES ---
         if dominante != tonique_synth:
@@ -117,12 +118,18 @@ if file:
         cols = st.columns(5)
         cols[0].metric("VOTE (Majorité)", dominante)
         cols[1].metric("TONIQUE (Synthèse)", tonique_synth)
-        cols[2].metric("CODE CAMELOT", get_camelot_pro(tonique_synth))
+        cols[2].metric("CODE CAMELOT", camelot)
         cols[3].metric("BPM", int(res['tempo']))
         cols[4].metric("ÉNERGIE", f"{res['energy']}/10")
+
+        # --- BOUTON DE TÉLÉCHARGEMENT ---
+        report_text = f"RAPPORT ANALYSE RICARDO_DJ228\nMorceau: {file.name}\nDominante: {dominante}\nTonique Synthèse: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}\nEnergie: {res['energy']}/10"
+        st.download_button(label="📥 Télécharger le rapport", data=report_text, file_name=f"Analyse_{file.name}.txt", mime="text/plain")
 
         # --- GRAPHIQUE ---
         df = pd.DataFrame(timeline_data)
         fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
                          title=f"Nuage de Stabilité Harmonique : {file.name}")
-        st.plotly_chart(fig, use_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("Analyse impossible : le signal audio est trop complexe ou trop court.")
