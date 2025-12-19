@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 from collections import Counter
-import datetime # Importation nécessaire pour l'horodatage
+import datetime
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Ricardo_DJ228 | Precision V3 Ultra", page_icon="🎧", layout="wide")
@@ -13,38 +13,31 @@ st.set_page_config(page_title="Ricardo_DJ228 | Precision V3 Ultra", page_icon="�
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- DESIGN & CSS ---
+# --- DESIGN & CSS (V4 STYLE) ---
 st.markdown("""
     <style>
     .stApp { background-color: #F8F9FA; color: #212529; }
-    h1 { font-family: 'Segoe UI', sans-serif; color: #1A1A1A; text-align: center; font-weight: 800; }
-    .stMetric { background-color: #FFFFFF !important; border: 1px solid #E0E0E0 !important; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .alert-box { padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; background-color: #FFEBEB; color: #B30000; font-weight: bold; margin-bottom: 20px; }
-    .success-box { padding: 15px; border-radius: 10px; border-left: 5px solid #28A745; background-color: #E8F5E9; color: #1B5E20; font-weight: bold; margin-bottom: 20px; }
-    /* Style pour le tableau d'historique */
-    .history-container { background-color: white; padding: 20px; border-radius: 15px; margin-top: 30px; border: 1px solid #DDD; }
+    .metric-container { background: white; padding: 20px; border-radius: 15px; border: 1px solid #E0E0E0; text-align: center; height: 100%; transition: transform 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+    .metric-container:hover { transform: translateY(-5px); border-color: #6366F1; }
+    .label-custom { color: #666; font-size: 0.85em; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .value-custom { font-size: 1.8em; font-weight: 800; color: #1A1A1A; line-height: 1.2; }
+    .camelot-custom { font-size: 1.6em; font-weight: 800; margin-top: 5px; }
+    .reliability-bar-bg { background-color: #E0E0E0; border-radius: 10px; height: 18px; width: 100%; margin: 15px 0; overflow: hidden; }
+    .reliability-fill { height: 100%; transition: width 0.8s ease-in-out; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.8em; font-weight: bold; }
+    .warning-box { background-color: #FFFBEB; border-left: 5px solid #F59E0B; padding: 15px; border-radius: 5px; margin: 15px 0; color: #92400E; }
+    .success-box { background-color: #ECFDF5; border-left: 5px solid #10B981; padding: 15px; border-radius: 5px; margin: 15px 0; color: #065F46; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MAPPING CAMELOT (F#m=11A, D#m=2A) ---
-BASE_CAMELOT_MINOR = {
-    'Ab': '1A', 'G#': '1A', 'Eb': '2A', 'D#': '2A', 'Bb': '3A', 'A#': '3A',
-    'F': '4A', 'C': '5A', 'G': '6A', 'D': '7A', 'A': '8A', 'E': '9A',
-    'B': '10A', 'Cb': '10A', 'F#': '11A', 'Gb': '11A', 'Db': '12A', 'C#': '12A'
-}
-BASE_CAMELOT_MAJOR = {
-    'B': '1B', 'Cb': '1B', 'F#': '2B', 'Gb': '2B', 'Db': '3B', 'C#': '3B',
-    'Ab': '4B', 'G#': '4B', 'Eb': '5B', 'D#': '5B', 'Bb': '6B', 'A#': '6B',
-    'F': '7B', 'C': '8B', 'G': '9B', 'D': '10B', 'A': '11B', 'E': '12B'
-}
+# --- MAPPING CAMELOT ---
+BASE_CAMELOT_MINOR = {'Ab':'1A','G#':'1A','Eb':'2A','D#':'2A','Bb':'3A','A#':'3A','F':'4A','C':'5A','G':'6A','D':'7A','A':'8A','E':'9A','B':'10A','F#':'11A','Gb':'11A','Db':'12A','C#':'12A'}
+BASE_CAMELOT_MAJOR = {'B':'1B','F#':'2B','Gb':'2B','Db':'3B','C#':'3B','Ab':'4B','G#':'4B','Eb':'5B','D#':'5B','Bb':'6B','A#':'6B','F':'7B','C':'8B','G':'9B','D':'10B','A':'11B','E':'12B'}
 
 def get_camelot_pro(key_mode_str):
     try:
         parts = key_mode_str.split(" ")
         key, mode = parts[0], parts[1].lower()
-        if mode in ['minor', 'dorian']:
-            return BASE_CAMELOT_MINOR.get(key, "??")
-        return BASE_CAMELOT_MAJOR.get(key, "??")
+        return BASE_CAMELOT_MINOR.get(key, "??") if mode in ['minor', 'dorian'] else BASE_CAMELOT_MAJOR.get(key, "??")
     except: return "??"
 
 # --- MOTEURS DE CALCUL ---
@@ -58,7 +51,7 @@ def calculate_energy(y, sr):
 def analyze_segment(y, sr):
     tuning = librosa.estimate_tuning(y=y, sr=sr)
     y_harm, _ = librosa.effects.hpss(y, margin=(3.0, 1.0))
-    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, tuning=tuning, fmin=librosa.note_to_hz('C2'))
+    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, tuning=tuning)
     chroma_avg = np.mean(chroma, axis=1)
     
     NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -76,103 +69,100 @@ def analyze_segment(y, sr):
                 best_s, res_k, res_m = score, NOTES[i], mode
     return f"{res_k} {res_m}", best_s
 
-# --- FONCTION D'ANALYSE ---
-@st.cache_data(show_spinner="Analyse ultra-précise en cours...")
-def get_single_analysis(file_buffer):
+@st.cache_data(show_spinner="Analyse spectrale haute précision...")
+def get_full_analysis(file_buffer):
     y, sr = librosa.load(file_buffer)
     duration = librosa.get_duration(y=y, sr=sr)
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
     energy = calculate_energy(y, sr)
-    timeline_data = []
-    votes = []
+    timeline_data, votes = [], []
     
     for start_t in range(0, int(duration) - 15, 10):
         seg, score = analyze_segment(y[int(start_t*sr):int((start_t+15)*sr)], sr)
         if score > 0.45:
             votes.append(seg)
             timeline_data.append({"Temps": start_t, "Note_Mode": seg, "Confiance": score})
-            
-    return {"dominante": Counter(votes).most_common(1)[0][0] if votes else "Inconnue",
-            "timeline": timeline_data, "tempo": int(float(tempo)), "energy": energy}
-
-# --- INTERFACE ---
-st.markdown("<h1>RICARDO_DJ228 | ANALYSEUR V3</h1>", unsafe_allow_html=True)
-
-file = st.file_uploader("Importer un fichier audio", type=['mp3', 'wav', 'flac'], accept_multiple_files=False)
-
-if file:
-    res = get_single_analysis(file)
-    timeline_data = res["timeline"]
-    dominante = res["dominante"]
     
+    # Détection de stabilité
+    dominante = Counter(votes).most_common(1)[0][0] if votes else "Inconnue"
     note_weights = {}
     for d in timeline_data:
         n = d["Note_Mode"]
         note_weights[n] = note_weights.get(n, 0) + d["Confiance"]
+    tonique_synth = max(note_weights, key=note_weights.get) if note_weights else "Inconnue"
     
-    if note_weights:
-        tonique_synth = max(note_weights, key=note_weights.get)
-        camelot = get_camelot_pro(tonique_synth)
-        
-        # AJOUT À L'HISTORIQUE (Vérifie si déjà ajouté pour éviter les doublons au refresh)
-        history_entry = {
-            "Heure": datetime.datetime.now().strftime("%H:%M:%S"),
-            "Fichier": file.name,
-            "Key": tonique_synth,
-            "Camelot": camelot,
-            "BPM": int(res['tempo']),
-            "Energie": res['energy']
-        }
-        
-        if not st.session_state.history or st.session_state.history[-1]["Fichier"] != file.name:
-            st.session_state.history.append(history_entry)
+    # Score de fiabilité
+    stability = (Counter(votes).most_common(1)[0][1] / len(votes)) if votes else 0
+    confidence = int(np.clip((stability * 60) + (max([d['Confiance'] for d in timeline_data]) * 40), 40, 99))
+    if dominante == tonique_synth: confidence = min(99, confidence + 10)
 
-        # --- ALERTES ---
-        if dominante != tonique_synth:
-            st.markdown(f'<div class="alert-box">⚠️ ANALYSE COMPLEXE : La dominante ({dominante}) diffère de la tonique globale ({tonique_synth}).</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Les deux méthodes confirment la même tonalité.</div>', unsafe_allow_html=True)
+    return {
+        "dominante": dominante, "synthese": tonique_synth, "confidence": confidence,
+        "tempo": int(float(tempo)), "energy": energy, "timeline": timeline_data
+    }
 
-        # --- MÉTRIQUES ---
-        cols = st.columns(5)
-        cols[0].metric("VOTE (Majorité)", dominante)
-        cols[1].metric("TONIQUE (Synthèse)", tonique_synth)
-        cols[2].metric("CODE CAMELOT", camelot)
-        cols[3].metric("BPM", int(res['tempo']))
-        cols[4].metric("ÉNERGIE", f"{res['energy']}/10")
+# --- INTERFACE ---
+st.markdown("<h1 style='text-align: center;'>🎧 RICARDO_DJ228 | V3 ULTRA PRECISION</h1>", unsafe_allow_html=True)
 
-        # --- BOUTONS ---
-        c1, c2 = st.columns(2)
-        report_text = f"RAPPORT ANALYSE RICARDO_DJ228\nMorceau: {file.name}\nDominante: {dominante}\nTonique Synthèse: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}\nEnergie: {res['energy']}/10"
-        c1.download_button(label="📥 Télécharger le rapport actuel", data=report_text, file_name=f"Analyse_{file.name}.txt", mime="text/plain")
+file = st.file_uploader("Glissez-déposez votre track ici", type=['mp3', 'wav', 'flac'])
 
-        # --- GRAPHIQUE ---
-        df = pd.DataFrame(timeline_data)
-        fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
-                          title=f"Nuage de Stabilité Harmonique : {file.name}")
-        st.plotly_chart(fig, use_container_width=True)
+if file:
+    res = get_full_analysis(file)
+    conf = res["confidence"]
+    color = "#10B981" if conf >= 90 else "#F59E0B" if conf > 70 else "#EF4444"
+    
+    # Barre de fiabilité
+    st.markdown(f"**Indice de Fiabilité Harmonique : {conf}%**")
+    st.markdown(f"""<div class="reliability-bar-bg"><div class="reliability-fill" style="width: {conf}%; background-color: {color};">{conf}%</div></div>""", unsafe_allow_html=True)
+    
+    # Alertes dynamiques
+    if res["dominante"] != res["synthese"]:
+        st.markdown(f"""<div class="warning-box">⚠️ <b>ANALYSE COMPLEXE :</b> Décalage détecté entre la dominante ({res['dominante']}) et la synthèse globale ({res['synthese']}). Le morceau pourrait changer de ton.</div>""", unsafe_allow_html=True)
     else:
-        st.error("Analyse impossible : le signal audio est trop complexe ou trop court.")
+        st.markdown(f"""<div class="success-box">✅ <b>ANALYSE CERTIFIÉE :</b> Signal harmonique stable et cohérent sur toute la durée du fichier.</div>""", unsafe_allow_html=True)
 
-# --- SECTION HISTORIQUE ---
-if st.session_state.history:
+    # --- GRILLE DE MÉTRIQUES ---
     st.markdown("---")
-    st.markdown("### 🕒 Historique de la Session")
+    m1, m2, m3, m4 = st.columns(4)
     
-    df_hist = pd.DataFrame(st.session_state.history)
+    with m1:
+        st.markdown(f"""<div class="metric-container"><div class="label-custom">Camelot Code</div><div class="camelot-custom" style="color:{color};">{get_camelot_pro(res['synthese'])}</div><div style="font-size:0.9em; opacity:0.7;">{res['synthese']}</div></div>""", unsafe_allow_html=True)
+    with m2:
+        st.markdown(f"""<div class="metric-container"><div class="label-custom">Tempo</div><div class="value-custom">{res['tempo']}</div><div style="font-size:0.9em; opacity:0.7;">BPM</div></div>""", unsafe_allow_html=True)
+    with m3:
+        st.markdown(f"""<div class="metric-container"><div class="label-custom">Énergie</div><div class="value-custom">{res['energy']}/10</div><div style="font-size:0.9em; opacity:0.7;">Puissance</div></div>""", unsafe_allow_html=True)
+    with m4:
+        status = "SOLIDE" if conf >= 90 else "À MIXER PRUDEMMENT"
+        st.markdown(f"""<div class="metric-container"><div class="label-custom">Statut</div><div class="value-custom" style="font-size:1.2em;">{status}</div></div>""", unsafe_allow_html=True)
+
+    # --- GRAPHIQUE ---
+    st.markdown("### 📊 Stabilité Harmonique")
+    df = pd.DataFrame(res["timeline"])
+    fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode", 
+                     template="plotly_white", color_discrete_sequence=px.colors.qualitative.Pastel)
+    fig.update_layout(margin=dict(l=20, r=20, t=20, b=20))
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- ACTIONS & HISTORIQUE ---
+    # Sauvegarde historique
+    if not st.session_state.history or st.session_state.history[-1]["Fichier"] != file.name:
+        st.session_state.history.append({
+            "Heure": datetime.datetime.now().strftime("%H:%M"),
+            "Fichier": file.name,
+            "Key": res['synthese'],
+            "Camelot": get_camelot_pro(res['synthese']),
+            "BPM": res['tempo'],
+            "Conf.": f"{conf}%"
+        })
+
+    c1, c2 = st.columns(2)
+    report = f"RAPPORT RICARDO_DJ228\nTrack: {file.name}\nKey: {res['synthese']} ({get_camelot_pro(res['synthese'])})\nBPM: {res['tempo']}\nEnergy: {res['energy']}/10\nFiabilité: {conf}%"
+    c1.download_button("📥 Télécharger le Rapport", report, file_name=f"Ricardo_Analysis_{file.name}.txt")
     
-    # Affichage du tableau
-    st.table(df_hist)
-    
-    # Bouton pour télécharger l'historique complet en CSV
-    csv = df_hist.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📂 Télécharger l'historique complet (CSV)",
-        data=csv,
-        file_name="historique_analyses_ricardo.csv",
-        mime="text/csv",
-    )
-    
-    if st.button("🗑️ Effacer l'historique"):
+    if st.button("🗑️ Effacer l'Historique"):
         st.session_state.history = []
         st.rerun()
+
+if st.session_state.history:
+    with st.expander("🕒 Historique des analyses de la session"):
+        st.table(pd.DataFrame(st.session_state.history))
