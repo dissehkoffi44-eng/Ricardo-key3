@@ -37,6 +37,8 @@ FREQS = {'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63, 'F':
          'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88}
 
 def get_camelot_pro(key, mode):
+    # Correction spécifique basée sur tes instructions : F# MINOR = 11A
+    if key == 'F#' and mode in ['minor', 'dorian']: return "11A"
     if key == 'B' and mode in ['minor', 'dorian']: return "10A"
     number = BASE_CAMELOT.get(key, "1")
     letter = "A" if mode in ['minor', 'dorian'] else "B"
@@ -51,9 +53,14 @@ PROFILES = {
 }
 
 def analyze_ultra_precision(y, sr):
-    y_harm = librosa.effects.harmonic(y, margin=4.0)
-    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, bins_per_octave=24)
+    # AJOUT DU FILTRAGE PERCUSSIF : On isole la composante harmonique
+    # Le paramètre margin=3.0 permet une séparation plus stricte
+    y_harmonic, y_percussive = librosa.effects.hpss(y, margin=(3.0, 1.0))
+    
+    # Utilisation de la composante harmonique pour le calcul du chroma
+    chroma = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr, bins_per_octave=24)
     chroma_avg = np.mean(chroma, axis=1)
+    
     best_score = -1
     res_key, res_mode = "", ""
     for mode, profile in PROFILES.items():
@@ -70,7 +77,7 @@ files = st.file_uploader("Déposez vos morceaux (Analyse haute précision)", typ
 if files:
     for file in files:
         with st.expander(f"🎼 Étude harmonique : {file.name}", expanded=True):
-            with st.spinner("Analyse spectrale profonde..."):
+            with st.spinner("Analyse spectrale avec filtrage percussif..."):
                 y_full, sr = librosa.load(file)
                 duration = librosa.get_duration(y=y_full, sr=sr)
                 tempo, _ = librosa.beat.beat_track(y=y_full, sr=sr)
@@ -79,8 +86,8 @@ if files:
                 timeline_data = []
                 
                 for start_t in range(0, int(duration) - 15, 10):
-                    start_s = start_t * sr
-                    end_s = (start_t + 15) * sr
+                    start_s = int(start_t * sr)
+                    end_s = int((start_t + 15) * sr)
                     key, mode, score = analyze_ultra_precision(y_full[start_s:end_s], sr)
                     if score > 0.5:
                         votes.append(f"{key} {mode}")
@@ -105,7 +112,7 @@ if files:
                     c2.metric("NOTATION CAMELOT", f_camelot)
                     c3.metric("TEMPO BPM", f"{int(float(tempo))}")
 
-                    # --- VÉRIFICATION AUDITIVE (RÉINTÉGRÉE) ---
+                    # --- VÉRIFICATION AUDITIVE ---
                     st.markdown("### 🔊 Vérification à l'oreille")
                     v1, v2 = st.columns(2)
                     with v1:
@@ -115,7 +122,6 @@ if files:
                         st.write(f"Ton de référence ({f_key}) :")
                         target_freq = FREQS.get(f_key, 440.0)
                         t = np.linspace(0, 3.0, int(22050 * 3.0), False)
-                        # Génère un ton riche (Fondamentale + Octave)
                         tone = 0.4 * np.sin(2 * np.pi * target_freq * t) + 0.2 * np.sin(2 * np.pi * (target_freq * 2) * t)
                         st.audio(tone, sample_rate=22050)
 
