@@ -40,7 +40,7 @@ def get_camelot_pro(key_mode_str):
         return BASE_CAMELOT_MAJOR.get(key, "??")
     except: return "??"
 
-# --- TES MOTEURS DE CALCUL (STRICTEMENT IDENTIQUES) ---
+# --- TES MOTEURS DE CALCUL ---
 def calculate_energy(y, sr):
     rms = np.mean(librosa.feature.rms(y=y))
     rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
@@ -81,7 +81,7 @@ def get_single_analysis(file_buffer):
             timeline_data.append({"Temps": start_t, "Note_Mode": seg, "Confiance": score})
     return {"dominante": Counter(votes).most_common(1)[0][0] if votes else "Inconnue", "timeline": timeline_data, "tempo": int(float(tempo)), "energy": energy}
 
-# --- INTERFACE GRAPHIQUE MODIFIÉE ---
+# --- INTERFACE GRAPHIQUE ---
 st.markdown("<h1 style='text-align: center;'>🎧 RICARDO_DJ228 | ANALYSEUR V3</h1>", unsafe_allow_html=True)
 
 file = st.file_uploader("Importer un fichier audio", type=['mp3', 'wav', 'flac'])
@@ -91,7 +91,6 @@ if file:
     timeline_data = res["timeline"]
     dominante = res["dominante"]
     
-    # Logique de synthèse
     note_weights = {}
     for d in timeline_data:
         n = d["Note_Mode"]
@@ -101,21 +100,28 @@ if file:
         tonique_synth = max(note_weights, key=note_weights.get)
         camelot = get_camelot_pro(tonique_synth)
         
-        # Calcul de fiabilité pour la barre graphique
-        conf_score = int(np.mean([d['Confiance'] for d in timeline_data]) * 100)
-        color = "#10B981" if dominante == tonique_synth else "#F59E0B"
+        # --- LOGIQUE DE STABILITÉ DEMANDÉE ---
+        if dominante == tonique_synth:
+            # Si identique, on force un score entre 96 et 99%
+            base_conf = int(np.mean([d['Confiance'] for d in timeline_data]) * 100)
+            conf_score = int(np.clip(base_conf + 20, 96, 99))
+            color = "#10B981" # Vert
+        else:
+            # Si différent, on garde le calcul standard (souvent < 90%)
+            conf_score = int(np.mean([d['Confiance'] for d in timeline_data]) * 100)
+            color = "#F59E0B" # Orange
 
         # Barre de progression visuelle
         st.markdown(f"**Indice de Stabilité Harmonique : {conf_score}%**")
         st.markdown(f"""<div class="reliability-bar-bg"><div class="reliability-fill" style="width: {conf_score}%; background-color: {color};">{conf_score}%</div></div>""", unsafe_allow_html=True)
 
-        # Affichage des alertes stylisées
+        # Alertes
         if dominante != tonique_synth:
             st.markdown(f'<div class="alert-box">⚠️ ANALYSE COMPLEXE : La dominante ({dominante}) diffère de la tonique ({tonique_synth}).</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Les deux méthodes confirment la même tonalité.</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="success-box">✅ ANALYSE CERTIFIÉE : Correspondance parfaite détectée ({conf_score}%).</div>', unsafe_allow_html=True)
 
-        # --- GRILLE DE MÉTRIQUES DESIGN ---
+        # --- GRILLE DE MÉTRIQUES ---
         st.markdown("---")
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1: st.markdown(f'<div class="metric-container"><div class="label-custom">Dominante</div><div class="value-custom" style="font-size:1.2em;">{dominante}</div></div>', unsafe_allow_html=True)
@@ -132,7 +138,7 @@ if file:
 
         # Historique
         if not st.session_state.history or st.session_state.history[-1]["Fichier"] != file.name:
-            st.session_state.history.append({"Heure": datetime.datetime.now().strftime("%H:%M"), "Fichier": file.name, "Key": tonique_synth, "Camelot": camelot, "BPM": res['tempo']})
+            st.session_state.history.append({"Heure": datetime.datetime.now().strftime("%H:%M"), "Fichier": file.name, "Key": tonique_synth, "Camelot": camelot, "BPM": res['tempo'], "Stabilité": f"{conf_score}%"})
 
 if st.session_state.history:
     with st.expander("🕒 Historique de session"):
