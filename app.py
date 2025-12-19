@@ -11,39 +11,24 @@ st.set_page_config(page_title="Ricardo_DJ228 | Pro Analyzer", page_icon="🎧", 
 # --- DESIGN PERSONNALISÉ (THÈME DARK PRO & GOLD) ---
 st.markdown("""
     <style>
-    /* Fond principal sombre */
-    .stApp { 
-        background-color: #0E1117; 
-        color: #FFFFFF; 
-    }
-    /* Titre Principal */
+    .stApp { background-color: #0E1117; color: #FFFFFF; }
     h1 { 
         font-family: 'Helvetica Neue', sans-serif; 
-        color: #FFD700; /* Or */
-        text-align: center; 
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: 2px;
+        color: #FFD700; text-align: center; font-weight: 900;
+        text-transform: uppercase; letter-spacing: 2px;
         text-shadow: 2px 2px 10px rgba(255, 215, 0, 0.3);
     }
-    /* Style des cartes de métriques */
-    div[data-testid="stMetricValue"] { 
-        color: #FFD700 !important; 
-        font-size: 28px !important;
-    }
-    div[data-testid="stMetricLabel"] { 
-        color: #A0A0A0 !important; 
-        font-size: 14px !important;
-        text-transform: uppercase;
-    }
-    .stMetric {
+    /* Correction de l'affichage des métriques pour qu'elles soient bien visibles */
+    [data-testid="stMetric"] {
         background-color: #1A1C24 !important;
         border: 1px solid #30333D !important;
         border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        padding: 15px;
+        text-align: center;
     }
-    /* Alertes personnalisées */
+    [data-testid="stMetricValue"] { color: #FFD700 !important; }
+    [data-testid="stMetricLabel"] { color: #A0A0A0 !important; }
+    
     .alert-box { 
         padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; 
         background-color: #2D1B1B; color: #FF8080; font-weight: bold; margin-bottom: 20px; 
@@ -51,15 +36,6 @@ st.markdown("""
     .success-box { 
         padding: 15px; border-radius: 10px; border-left: 5px solid #00C853; 
         background-color: #1B2D1B; color: #80FFAD; font-weight: bold; margin-bottom: 20px; 
-    }
-    /* Bouton Téléchargement */
-    .stDownloadButton button {
-        background-color: #FFD700 !important;
-        color: #0E1117 !important;
-        font-weight: bold !important;
-        border-radius: 8px !important;
-        border: none !important;
-        width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -143,7 +119,7 @@ if file:
     timeline_data = res["timeline"]
     dominante = res["dominante"]
     
-    # Calcul de la Synthèse
+    # Calcul de la Synthèse (Poids mélodique réel)
     note_weights = {}
     for d in timeline_data:
         n = d["Note_Mode"]
@@ -157,24 +133,30 @@ if file:
         if dominante != tonique_synth:
             st.markdown(f'<div class="alert-box">⚠️ MODULATION : Dominante ({dominante}) vs Tonique Synthèse ({tonique_synth}).</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Tonalité confirmée à 100%.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Tonalité confirmée par synthèse globale.</div>', unsafe_allow_html=True)
 
-        # --- MÉTRIQUES ---
-        cols = st.columns(5)
-        cols[0].metric("VOTE MAJORITÉ", dominante)
-        cols[1].metric("TONIQUE RÉELLE", tonique_synth)
-        cols[2].metric("CAMELOT", camelot)
-        cols[3].metric("BPM", int(res['tempo']))
-        cols[4].metric("ÉNERGIE", f"{res['energy']}/10")
+        # --- MÉTRIQUES (Vérifie bien que ces 5 lignes s'affichent) ---
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("VOTE (MAJORITÉ)", dominante)
+        c2.metric("TONIQUE (SYNTHÈSE)", tonique_synth)
+        c3.metric("CODE CAMELOT", camelot)
+        c4.metric("BPM", f"{int(res['tempo'])}")
+        c5.metric("ÉNERGIE", f"{res['energy']}/10")
 
-        # --- ZONE DE TÉLÉCHARGEMENT ---
+        # --- ESPACE POUR LE BOUTON DE TÉLÉCHARGEMENT ---
+        st.markdown("### 💾 Exportation")
+        report_text = f"RAPPORT RICARDO_DJ228\nMorceau: {file.name}\nDominante (Vote): {dominante}\nTonique (Synthèse): {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}\nEnergie: {res['energy']}/10"
+        
+        st.download_button(
+            label="📥 TÉLÉCHARGER LE RAPPORT COMPLET",
+            data=report_text,
+            file_name=f"Analyse_RicardoDJ_{file.name}.txt",
+            mime="text/plain"
+        )
+
+        # --- GRAPHIQUE ---
         st.markdown("---")
-        report_text = f"RAPPORT RICARDO_DJ228\nMorceau: {file.name}\nTonique: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}"
-        st.download_button(label="📥 TÉLÉCHARGER LE RAPPORT .TXT", data=report_text, file_name=f"RicardoDJ_{file.name}.txt")
-
-        # --- GRAPHIQUE DARK ---
         df = pd.DataFrame(timeline_data)
         fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
-                         template="plotly_dark", title="STABILITÉ HARMONIQUE")
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                         template="plotly_dark", title=f"Visualisation : {file.name}")
         st.plotly_chart(fig, use_container_width=True)
