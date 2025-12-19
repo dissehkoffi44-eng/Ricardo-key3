@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 from collections import Counter
-import datetime
+import datetime # Importation nécessaire pour l'horodatage
 
 # --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="Ricardo_DJ228 | Precision V3.5 Ultra", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Ricardo_DJ228 | Precision V3 Ultra", page_icon="🎧", layout="wide")
 
 # --- INITIALISATION DE L'HISTORIQUE ---
 if 'history' not in st.session_state:
@@ -21,6 +21,8 @@ st.markdown("""
     .stMetric { background-color: #FFFFFF !important; border: 1px solid #E0E0E0 !important; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .alert-box { padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; background-color: #FFEBEB; color: #B30000; font-weight: bold; margin-bottom: 20px; }
     .success-box { padding: 15px; border-radius: 10px; border-left: 5px solid #28A745; background-color: #E8F5E9; color: #1B5E20; font-weight: bold; margin-bottom: 20px; }
+    /* Style pour le tableau d'historique */
+    .history-container { background-color: white; padding: 20px; border-radius: 15px; margin-top: 30px; border: 1px solid #DDD; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -54,21 +56,9 @@ def calculate_energy(y, sr):
     return int(np.clip(energy_score, 1, 10))
 
 def analyze_segment(y, sr):
-    # 1. Estimation fine de l'accordage
     tuning = librosa.estimate_tuning(y=y, sr=sr)
-    
-    # 2. Nettoyage : On garde uniquement les harmoniques (on vire les percussions sèches)
     y_harm, _ = librosa.effects.hpss(y, margin=(3.0, 1.0))
-    
-    # 3. Filtrage Spectral : Focus sur la zone harmonique (C2 à C7)
-    # On utilise 24 bins par octave pour une précision chirurgicale
-    chroma = librosa.feature.chroma_cqt(
-        y=y_harm, 
-        sr=sr, 
-        tuning=tuning, 
-        fmin=librosa.note_to_hz('C2'), 
-        bins_per_octave=24
-    )
+    chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, tuning=tuning, fmin=librosa.note_to_hz('C2'))
     chroma_avg = np.mean(chroma, axis=1)
     
     NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -80,64 +70,51 @@ def analyze_segment(y, sr):
     
     best_s, res_k, res_m = -1, "", ""
     for mode, profile in PROFILES.items():
-        # Normalisation du profil pour une corrélation robuste
-        prof_norm = (profile - np.mean(profile)) / np.std(profile)
         for i in range(12):
-            shifted_prof = np.roll(prof_norm, i)
-            chroma_norm = (chroma_avg - np.mean(chroma_avg)) / np.std(chroma_avg)
-            score = np.corrcoef(chroma_norm, shifted_prof)[0, 1]
+            score = np.corrcoef(chroma_avg, np.roll(profile, i))[0, 1]
             if score > best_s:
                 best_s, res_k, res_m = score, NOTES[i], mode
     return f"{res_k} {res_m}", best_s
 
-# --- FONCTION D'ANALYSE PRINCIPALE ---
-@st.cache_data(show_spinner="Analyse spectrale haute précision...")
+# --- FONCTION D'ANALYSE ---
+@st.cache_data(show_spinner="Analyse ultra-précise en cours...")
 def get_single_analysis(file_buffer):
     y, sr = librosa.load(file_buffer)
     duration = librosa.get_duration(y=y, sr=sr)
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
     energy = calculate_energy(y, sr)
-    
     timeline_data = []
     votes = []
     
-    # Analyse par fenêtres glissantes de 15s toutes les 10s
     for start_t in range(0, int(duration) - 15, 10):
-        start_sample = int(start_t * sr)
-        end_sample = int((start_t + 15) * sr)
-        seg, score = analyze_segment(y[start_sample:end_sample], sr)
-        
-        if score > 0.40: # Seuil de confiance
+        seg, score = analyze_segment(y[int(start_t*sr):int((start_t+15)*sr)], sr)
+        if score > 0.45:
             votes.append(seg)
             timeline_data.append({"Temps": start_t, "Note_Mode": seg, "Confiance": score})
             
-    return {
-        "dominante": Counter(votes).most_common(1)[0][0] if votes else "Inconnue",
-        "timeline": timeline_data, 
-        "tempo": int(float(tempo)), 
-        "energy": energy
-    }
+    return {"dominante": Counter(votes).most_common(1)[0][0] if votes else "Inconnue",
+            "timeline": timeline_data, "tempo": int(float(tempo)), "energy": energy}
 
 # --- INTERFACE ---
-st.markdown("<h1>RICARDO_DJ228 | ANALYSEUR V3.5 PRO</h1>", unsafe_allow_html=True)
+st.markdown("<h1>RICARDO_DJ228 | ANALYSEUR V3</h1>", unsafe_allow_html=True)
 
 file = st.file_uploader("Importer un fichier audio", type=['mp3', 'wav', 'flac'], accept_multiple_files=False)
 
 if file:
     res = get_single_analysis(file)
     timeline_data = res["timeline"]
+    dominante = res["dominante"]
     
-    if timeline_data:
-        # Synthèse pondérée par la confiance
-        note_weights = {}
-        for d in timeline_data:
-            n = d["Note_Mode"]
-            note_weights[n] = note_weights.get(n, 0) + d["Confiance"]
-        
+    note_weights = {}
+    for d in timeline_data:
+        n = d["Note_Mode"]
+        note_weights[n] = note_weights.get(n, 0) + d["Confiance"]
+    
+    if note_weights:
         tonique_synth = max(note_weights, key=note_weights.get)
         camelot = get_camelot_pro(tonique_synth)
         
-        # Historique
+        # AJOUT À L'HISTORIQUE (Vérifie si déjà ajouté pour éviter les doublons au refresh)
         history_entry = {
             "Heure": datetime.datetime.now().strftime("%H:%M:%S"),
             "Fichier": file.name,
@@ -150,32 +127,51 @@ if file:
         if not st.session_state.history or st.session_state.history[-1]["Fichier"] != file.name:
             st.session_state.history.append(history_entry)
 
-        # Affichage Alertes
-        if res["dominante"] != tonique_synth:
-            st.markdown(f'<div class="alert-box">⚠️ COMPLEXITÉ DÉTECTÉE : Variations harmoniques trouvées. Tonique suggérée : {tonique_synth}</div>', unsafe_allow_html=True)
+        # --- ALERTES ---
+        if dominante != tonique_synth:
+            st.markdown(f'<div class="alert-box">⚠️ ANALYSE COMPLEXE : La dominante ({dominante}) diffère de la tonique globale ({tonique_synth}).</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="success-box">✅ STABILITÉ HARMONIQUE : Signature sonore claire et précise.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="success-box">✅ ANALYSE STABLE : Les deux méthodes confirment la même tonalité.</div>', unsafe_allow_html=True)
 
-        # Métriques
-        cols = st.columns(4)
-        cols[0].metric("TONALITÉ", tonique_synth)
-        cols[1].metric("CODE CAMELOT", camelot)
-        cols[2].metric("BPM", res['tempo'])
-        cols[3].metric("ÉNERGIE", f"{res['energy']}/10")
+        # --- MÉTRIQUES ---
+        cols = st.columns(5)
+        cols[0].metric("VOTE (Majorité)", dominante)
+        cols[1].metric("TONIQUE (Synthèse)", tonique_synth)
+        cols[2].metric("CODE CAMELOT", camelot)
+        cols[3].metric("BPM", int(res['tempo']))
+        cols[4].metric("ÉNERGIE", f"{res['energy']}/10")
 
-        # Graphique
+        # --- BOUTONS ---
+        c1, c2 = st.columns(2)
+        report_text = f"RAPPORT ANALYSE RICARDO_DJ228\nMorceau: {file.name}\nDominante: {dominante}\nTonique Synthèse: {tonique_synth}\nCamelot: {camelot}\nBPM: {int(res['tempo'])}\nEnergie: {res['energy']}/10"
+        c1.download_button(label="📥 Télécharger le rapport actuel", data=report_text, file_name=f"Analyse_{file.name}.txt", mime="text/plain")
+
+        # --- GRAPHIQUE ---
         df = pd.DataFrame(timeline_data)
-        fig = px.line(df, x="Temps", y="Confiance", color="Note_Mode", title="Stabilité du signal par segment")
+        fig = px.scatter(df, x="Temps", y="Note_Mode", size="Confiance", color="Note_Mode",
+                          title=f"Nuage de Stabilité Harmonique : {file.name}")
         st.plotly_chart(fig, use_container_width=True)
-        
     else:
-        st.error("Signal trop faible ou bruit excessif pour une analyse fiable.")
+        st.error("Analyse impossible : le signal audio est trop complexe ou trop court.")
 
 # --- SECTION HISTORIQUE ---
 if st.session_state.history:
     st.markdown("---")
-    st.markdown("### 🕒 Historique des Analyses")
-    st.dataframe(pd.DataFrame(st.session_state.history), use_container_width=True)
+    st.markdown("### 🕒 Historique de la Session")
+    
+    df_hist = pd.DataFrame(st.session_state.history)
+    
+    # Affichage du tableau
+    st.table(df_hist)
+    
+    # Bouton pour télécharger l'historique complet en CSV
+    csv = df_hist.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📂 Télécharger l'historique complet (CSV)",
+        data=csv,
+        file_name="historique_analyses_ricardo.csv",
+        mime="text/csv",
+    )
     
     if st.button("🗑️ Effacer l'historique"):
         st.session_state.history = []
