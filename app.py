@@ -8,39 +8,20 @@ from datetime import datetime
 import io
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Ricardo_DJ228 | Pro Analyzer", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Ricardo_DJ228 | Precision V3", page_icon="🎧", layout="wide")
 
+# Initialisation de l'historique
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- DESIGN HAUTE LISIBILITÉ (CSS) ---
+# CSS Thème Studio Dark/Wood
 st.markdown("""
     <style>
-    /* Fond et texte principal */
-    .stApp { background-color: #0E1117; color: #FFFFFF; }
-    
-    /* Titre principal */
-    h1 { font-family: 'Helvetica Neue', sans-serif; color: #D4AF37; text-align: center; 
-         font-size: 3rem !important; font-weight: 800; padding-bottom: 20px; }
-    
-    /* Sous-titres */
-    h2, h3 { color: #D4AF37 !important; font-weight: 600 !important; }
-
-    /* Métriques (Clé, Camelot, BPM) */
-    div[data-testid="stMetricValue"] { font-size: 2.5rem !important; font-weight: 700 !important; color: #FFFFFF !important; }
-    div[data-testid="stMetricLabel"] { font-size: 1.1rem !important; color: #D4AF37 !important; text-transform: uppercase; letter-spacing: 1px; }
-    div[data-testid="stMetric"] { background-color: #1E2129; border: 2px solid #30363D; border-radius: 15px; padding: 20px !important; }
-
-    /* Cartes Historique */
-    .history-card { background-color: #1E2129; padding: 15px; border-radius: 10px; 
-                     border: 1px solid #30363D; margin-bottom: 10px; font-size: 1.1rem; line-height: 1.6; }
-    .history-card b { color: #D4AF37; font-size: 1.2rem; }
-
-    /* Audio et Upload */
-    .stAudio { margin-top: 10px; }
-    
-    /* Texte d'aide */
-    .stMarkdown p { font-size: 1.1rem !important; line-height: 1.7; }
+    .stApp { background-color: #121212; color: #E0E0E0; }
+    h1 { font-family: 'serif'; color: #D4AF37; text-align: center; text-shadow: 2px 2px 4px #000; }
+    .stMetric { background-color: #1E1E1E !important; border-left: 5px solid #D4AF37 !important; border-radius: 10px; padding: 15px; }
+    .history-card { background-color: #1E1E1E; padding: 12px; border-radius: 8px; border-bottom: 1px solid #333; margin-bottom: 8px; color: #BBB; }
+    .stExpander { border: 1px solid #333 !important; background-color: #181818 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,6 +32,7 @@ BASE_CAMELOT = {
     'F': '7', 'C': '8', 'G': '9', 'D': '10', 'A': '11', 'E': '12'
 }
 
+# Fréquences pour vérification auditive
 FREQS = {'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63, 'F': 349.23, 
          'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88}
 
@@ -60,7 +42,7 @@ def get_camelot_pro(key, mode):
     letter = "A" if mode in ['minor', 'dorian'] else "B"
     return f"{number}{letter}"
 
-# --- MOTEUR D'ANALYSE ---
+# --- MOTEUR D'ANALYSE HAUTE PRÉCISION ---
 NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 PROFILES = {
     "major": [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88],
@@ -82,78 +64,87 @@ def analyze_ultra_precision(y, sr):
     return res_key, res_mode, best_score
 
 # --- INTERFACE ---
-st.markdown("<h1>RICARDO_DJ228 | PRO ANALYZER</h1>", unsafe_allow_html=True)
-
-files = st.file_uploader("", type=['mp3', 'wav', 'flac'], accept_multiple_files=True)
+st.markdown("<h1>RICARDO_DJ228 PRECISION ANALYZER V3</h1>", unsafe_allow_html=True)
+files = st.file_uploader("Déposez vos morceaux (Analyse haute précision)", type=['mp3', 'wav', 'flac'], accept_multiple_files=True)
 
 if files:
     for file in files:
-        with st.expander(f"🎵 ANALYSE EN COURS : {file.name.upper()}", expanded=True):
-            y_full, sr = librosa.load(file)
-            duration = librosa.get_duration(y=y_full, sr=sr)
-            tempo, _ = librosa.beat.beat_track(y=y_full, sr=sr)
-            
-            votes, timeline_data = [], []
-            for start_t in range(0, int(duration) - 15, 10):
-                res_key, res_mode, score = analyze_ultra_precision(y_full[start_t*sr : (start_t+15)*sr], sr)
-                if score > 0.5:
-                    votes.append(f"{res_key} {res_mode}")
-                    timeline_data.append({"Temps": start_t, "Note": res_key, "Mode": res_mode, "Confiance": score})
-
-            if votes:
-                f_key, f_mode = Counter(votes).most_common(1)[0][0].split(" ")
-                f_camelot = get_camelot_pro(f_key, f_mode)
+        with st.expander(f"🎼 Étude harmonique : {file.name}", expanded=True):
+            with st.spinner("Analyse spectrale profonde..."):
+                y_full, sr = librosa.load(file)
+                duration = librosa.get_duration(y=y_full, sr=sr)
+                tempo, _ = librosa.beat.beat_track(y=y_full, sr=sr)
                 
-                st.session_state.history.insert(0, {
-                    "Heure": datetime.now().strftime("%H:%M"),
-                    "Nom": file.name, "Cle": f"{f_key} {f_mode.upper()}",
-                    "Camelot": f_camelot, "BPM": int(float(tempo))
-                })
-
-                # Affichage des résultats
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Clé Détectée", f"{f_key} {f_mode.upper()}")
-                c2.metric("Code Camelot", f_camelot)
-                c3.metric("Tempo", f"{int(float(tempo))} BPM")
-
-                st.markdown("---")
+                votes = []
+                timeline_data = []
                 
-                # Vérification auditive
-                st.subheader("🔊 TEST D'ACCORDAGE")
-                v1, v2 = st.columns(2)
-                with v1:
-                    st.markdown("**Morceau Original**")
-                    st.audio(file)
-                with v2:
-                    st.markdown(f"**Référence : {f_key}**")
-                    t = np.linspace(0, 3.0, int(22050 * 3.0), False)
-                    tone = 0.4 * np.sin(2 * np.pi * FREQS[f_key] * t) + 0.2 * np.sin(2 * np.pi * (FREQS[f_key] * 2) * t)
-                    st.audio(tone, sample_rate=22050)
+                for start_t in range(0, int(duration) - 15, 10):
+                    start_s = start_t * sr
+                    end_s = (start_t + 15) * sr
+                    key, mode, score = analyze_ultra_precision(y_full[start_s:end_s], sr)
+                    if score > 0.5:
+                        votes.append(f"{key} {mode}")
+                        timeline_data.append({"Temps": start_t, "Note": key, "Mode": mode, "Confiance": score})
 
-                # Graphique
-                df_plot = pd.DataFrame(timeline_data)
-                fig = px.scatter(df_plot, x="Temps", y="Note", color="Mode", size="Confiance",
-                                 title="STABILITÉ HARMONIQUE (Nuage de confiance)",
-                                 color_discrete_sequence=["#D4AF37", "#4A90E2"], category_orders={"Note": NOTES})
-                fig.update_layout(template="plotly_dark", font=dict(size=14))
-                st.plotly_chart(fig, use_container_width=True)
+                if votes:
+                    final_decision = Counter(votes).most_common(1)[0][0]
+                    f_key, f_mode = final_decision.split(" ")
+                    f_camelot = get_camelot_pro(f_key, f_mode)
+                    
+                    st.session_state.history.insert(0, {
+                        "Heure": datetime.now().strftime("%H:%M"),
+                        "Nom": file.name,
+                        "Cle": f"{f_key} {f_mode.upper()}",
+                        "Camelot": f_camelot,
+                        "BPM": int(float(tempo))
+                    })
+
+                    # Affichage Métriques
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("CLÉ STABLE", f"{f_key} {f_mode.upper()}")
+                    c2.metric("NOTATION CAMELOT", f_camelot)
+                    c3.metric("TEMPO BPM", f"{int(float(tempo))}")
+
+                    # --- VÉRIFICATION AUDITIVE (RÉINTÉGRÉE) ---
+                    st.markdown("### 🔊 Vérification à l'oreille")
+                    v1, v2 = st.columns(2)
+                    with v1:
+                        st.write("Fichier original :")
+                        st.audio(file)
+                    with v2:
+                        st.write(f"Ton de référence ({f_key}) :")
+                        target_freq = FREQS.get(f_key, 440.0)
+                        t = np.linspace(0, 3.0, int(22050 * 3.0), False)
+                        # Génère un ton riche (Fondamentale + Octave)
+                        tone = 0.4 * np.sin(2 * np.pi * target_freq * t) + 0.2 * np.sin(2 * np.pi * (target_freq * 2) * t)
+                        st.audio(tone, sample_rate=22050)
+
+                    # Graphique
+                    df_plot = pd.DataFrame(timeline_data)
+                    fig = px.scatter(df_plot, x="Temps", y="Note", color="Mode", size="Confiance",
+                                     title=f"Nuage de stabilité harmonique - {file.name}",
+                                     color_discrete_sequence=["#D4AF37", "#4A90E2"],
+                                     category_orders={"Note": NOTES})
+                    fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Analyse instable : signal trop complexe.")
 
 # --- HISTORIQUE ---
-st.markdown("## 📜 HISTORIQUE DES SESSIONS")
+st.divider()
 if st.session_state.history:
-    h_col1, h_col2 = st.columns([1, 4])
-    with h_col1:
+    col_h1, col_h2 = st.columns([1, 4])
+    with col_h1:
         csv = pd.DataFrame(st.session_state.history).to_csv(index=False).encode('utf-8')
-        st.download_button("📥 EXPORTER CSV", csv, "sessions_ricardo.csv", "text/csv")
-    with h_col2:
-        if st.button("🗑️ EFFACER TOUT"):
+        st.download_button("📥 EXPORTER CSV", csv, "export_dj_set.csv", "text/csv")
+    with col_h2:
+        if st.button("🗑️ VIDER L'HISTORIQUE"):
             st.session_state.history = []
             st.rerun()
 
     for item in st.session_state.history:
         st.markdown(f"""
         <div class="history-card">
-            🕒 <b>{item['Heure']}</b> | 📄 {item['Nom']} | 
-            🔑 <b>{item['Cle']} ({item['Camelot']})</b> | 🥁 {item['BPM']} BPM
+            <b>{item['Heure']}</b> | {item['Nom']} | <span style="color:#D4AF37">{item['Cle']} ({item['Camelot']})</span> | {item['BPM']} BPM
         </div>
         """, unsafe_allow_html=True)
