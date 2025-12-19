@@ -28,33 +28,37 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- MAPPING CAMELOT & FREQS ---
+# --- MAPPING CAMELOT (CORRIGÉ : F# Minor = 11A) ---
 BASE_CAMELOT = {
-    'B': '1', 'Cb': '1', 'F#': '2', 'Gb': '2', 'Db': '3', 'C#': '3', 
-    'Ab': '4', 'G#': '4', 'Eb': '5', 'D#': '5', 'Bb': '6', 'A#': '6', 
+    'B': '1', 'Cb': '1', 
+    'F#': '2', 'Gb': '2', # Major
+    'Db': '3', 'C#': '3', 
+    'Ab': '4', 'G#': '4', 
+    'Eb': '5', 'D#': '5', 
+    'Bb': '6', 'A#': '6', 
     'F': '7', 'C': '8', 'G': '9', 'D': '10', 'A': '11', 'E': '12'
 }
+
 FREQS = {'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63, 'F': 349.23, 
          'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88}
 
 def get_camelot_pro(key, mode):
-    if key == 'B' and mode in ['minor', 'dorian']: return "10A"
+    # Correction spécifique : F# Minor (et ses équivalents) = 11A
+    if (key == 'F#' or key == 'Gb') and mode in ['minor', 'dorian']:
+        return "11A"
+    # Correction spécifique : B Minor = 10A
+    if key == 'B' and mode in ['minor', 'dorian']:
+        return "10A"
+        
     number = BASE_CAMELOT.get(key, "1")
     letter = "A" if mode in ['minor', 'dorian'] else "B"
     return f"{number}{letter}"
 
 # --- MOTEUR BPM AMÉLIORÉ ---
 def get_precise_bpm(y, sr):
-    # On sépare les percussions (Kick/Snare) de la mélodie
     y_percussive = librosa.effects.percussive(y, margin=3.0)
-    
-    # Calcul de l'enveloppe de l'onset
     onset_env = librosa.onset.onset_strength(y=y_percussive, sr=sr)
-    
-    # Analyse du tempo avec une plage restreinte (plus précis pour le DJing)
-    # On force l'algorithme à chercher entre 70 et 160 BPM
     tempo = librosa.beat.tempo(onset_envelope=onset_env, sr=sr, start_bpm=120.0, std_bpm=1.0)
-    
     return float(tempo[0])
 
 # --- MOTEUR TONALITÉ ---
@@ -88,10 +92,7 @@ if files:
         with st.expander(f"🎵 ANALYSE : {file.name.upper()}", expanded=True):
             with st.spinner("Analyse du Groove et de la Tonalité..."):
                 y_full, sr = librosa.load(file)
-                
-                # --- NOUVEAU BPM PRÉCIS ---
                 tempo = get_precise_bpm(y_full, sr)
-                
                 duration = librosa.get_duration(y=y_full, sr=sr)
                 votes, timeline_data = [], []
                 
