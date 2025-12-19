@@ -32,6 +32,10 @@ BASE_CAMELOT = {
     'F': '7', 'C': '8', 'G': '9', 'D': '10', 'A': '11', 'E': '12'
 }
 
+# Fréquences pour vérification auditive
+FREQS = {'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63, 'F': 349.23, 
+         'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88}
+
 def get_camelot_pro(key, mode):
     if key == 'B' and mode in ['minor', 'dorian']: return "10A"
     number = BASE_CAMELOT.get(key, "1")
@@ -47,16 +51,11 @@ PROFILES = {
 }
 
 def analyze_ultra_precision(y, sr):
-    # 1. Isolation harmonique renforcée (marge élevée pour ignorer les percussions)
     y_harm = librosa.effects.harmonic(y, margin=4.0)
-    
-    # 2. Chroma CQT (plus précis musicalement que le Chroma STFT)
     chroma = librosa.feature.chroma_cqt(y=y_harm, sr=sr, bins_per_octave=24)
     chroma_avg = np.mean(chroma, axis=1)
-    
     best_score = -1
     res_key, res_mode = "", ""
-    
     for mode, profile in PROFILES.items():
         for i in range(12):
             score = np.corrcoef(chroma_avg, np.roll(profile, i))[0, 1]
@@ -79,23 +78,19 @@ if files:
                 votes = []
                 timeline_data = []
                 
-                # Analyse par fenêtres de 15s avec saut de 10s (overlap pour précision)
                 for start_t in range(0, int(duration) - 15, 10):
                     start_s = start_t * sr
                     end_s = (start_t + 15) * sr
                     key, mode, score = analyze_ultra_precision(y_full[start_s:end_s], sr)
-                    
-                    if score > 0.5: # Seuil de confiance
+                    if score > 0.5:
                         votes.append(f"{key} {mode}")
                         timeline_data.append({"Temps": start_t, "Note": key, "Mode": mode, "Confiance": score})
 
                 if votes:
-                    # Décision finale par majorité statistique (Stabilité)
                     final_decision = Counter(votes).most_common(1)[0][0]
                     f_key, f_mode = final_decision.split(" ")
                     f_camelot = get_camelot_pro(f_key, f_mode)
                     
-                    # Logique de sauvegarde
                     st.session_state.history.insert(0, {
                         "Heure": datetime.now().strftime("%H:%M"),
                         "Nom": file.name,
@@ -104,13 +99,27 @@ if files:
                         "BPM": int(float(tempo))
                     })
 
-                    # Affichage
+                    # Affichage Métriques
                     c1, c2, c3 = st.columns(3)
                     c1.metric("CLÉ STABLE", f"{f_key} {f_mode.upper()}")
                     c2.metric("NOTATION CAMELOT", f_camelot)
                     c3.metric("TEMPO BPM", f"{int(float(tempo))}")
 
-                    # Visualisation
+                    # --- VÉRIFICATION AUDITIVE (RÉINTÉGRÉE) ---
+                    st.markdown("### 🔊 Vérification à l'oreille")
+                    v1, v2 = st.columns(2)
+                    with v1:
+                        st.write("Fichier original :")
+                        st.audio(file)
+                    with v2:
+                        st.write(f"Ton de référence ({f_key}) :")
+                        target_freq = FREQS.get(f_key, 440.0)
+                        t = np.linspace(0, 3.0, int(22050 * 3.0), False)
+                        # Génère un ton riche (Fondamentale + Octave)
+                        tone = 0.4 * np.sin(2 * np.pi * target_freq * t) + 0.2 * np.sin(2 * np.pi * (target_freq * 2) * t)
+                        st.audio(tone, sample_rate=22050)
+
+                    # Graphique
                     df_plot = pd.DataFrame(timeline_data)
                     fig = px.scatter(df_plot, x="Temps", y="Note", color="Mode", size="Confiance",
                                      title=f"Nuage de stabilité harmonique - {file.name}",
@@ -118,12 +127,10 @@ if files:
                                      category_orders={"Note": NOTES})
                     fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig, use_container_width=True)
-                    
-                    st.audio(file)
                 else:
-                    st.warning("Impossible d'extraire une tonalité stable pour ce fichier.")
+                    st.warning("Analyse instable : signal trop complexe.")
 
-# --- HISTORIQUE & EXPORT ---
+# --- HISTORIQUE ---
 st.divider()
 if st.session_state.history:
     col_h1, col_h2 = st.columns([1, 4])
