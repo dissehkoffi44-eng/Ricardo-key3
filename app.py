@@ -82,7 +82,7 @@ def get_single_analysis(file_buffer):
     return {"dominante": Counter(votes).most_common(1)[0][0] if votes else "Inconnue", "timeline": timeline_data, "tempo": int(float(tempo)), "energy": energy}
 
 # --- INTERFACE GRAPHIQUE ---
-st.markdown("<h1 style='text-align: center;'>🎧 RICARDO_DJ228 | ANALYSEUR V3</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🎧 RICARDO_DJ228 | ANALYSEUR V3 ULTRA PRECIS</h1>", unsafe_allow_html=True)
 
 file = st.file_uploader("Importer un fichier audio", type=['mp3', 'wav', 'flac'])
 
