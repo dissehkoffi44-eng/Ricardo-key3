@@ -11,8 +11,8 @@ import gc
 from scipy.signal import butter, lfilter
 
 # --- CONFIGURATION SÉCURISÉE (Via Secrets Streamlit) ---
-TELEGRAM_TOKEN = st.secrets.get("TELEGRAM_TOKEN", "7751365982:AAFLbeRoPsDx5OyIOlsgHcGKpI12hopzCYo")
-CHAT_ID = st.secrets.get("CHAT_ID", "-1003602454394")
+TELEGRAM_TOKEN = st.secrets.get("TELEGRAM_TOKEN", "8513529075:AAGArnzI_6RtYX6WkZxmEfwtiFQdLqZG_to")
+CHAT_ID = st.secrets.get("CHAT_ID", "--1003647392401")
 
 # --- CONFIGURATION PAGE & CSS ORIGINAL ---
 st.set_page_config(page_title="RCDJ228 ULTIME KEY", page_icon="🎧", layout="wide")
