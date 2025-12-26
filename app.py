@@ -10,9 +10,9 @@ import requests
 import gc                             
 from scipy.signal import butter, lfilter
 
-# --- CONFIGURATION SÉCURISÉE (Via Secrets Streamlit) ---
-TELEGRAM_TOKEN = st.secrets.get("TELEGRAM_TOKEN", "8513529075:AAGArnzI_6RtYX6WkZxmEfwtiFQdLqZG_to")
-CHAT_ID = st.secrets.get("CHAT_ID", "--1003647392401")
+# --- CONFIGURATION SÉCURISÉE ---
+TELEGRAM_TOKEN = "8513529075:AAGArnzI_6RtYX6WkZxmEfwtiFQdLqZG_to"
+CHAT_ID = "-1003647392401"
 
 # --- CONFIGURATION PAGE & CSS ORIGINAL ---
 st.set_page_config(page_title="RCDJ228 ULTIME KEY", page_icon="🎧", layout="wide")
@@ -112,7 +112,6 @@ def analyze_segment(y, sr, tuning=0.0):
     chroma = librosa.feature.chroma_cens(y=y_filtered, sr=sr, hop_length=1024, n_chroma=12, tuning=tuning)
     chroma_avg = np.mean(chroma, axis=1)
     
-    # PROFILES OPTIMISÉS (Poids renforcés sur les tierces et quintes pour éviter la confusion)
     PROFILES = {
         "major": [6.35, 2.23, 3.48, 2.33, 5.50, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88], 
         "minor": [6.33, 2.68, 3.52, 6.50, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
@@ -125,23 +124,20 @@ def analyze_segment(y, sr, tuning=0.0):
             if score > best_score: 
                 best_score, res_key = score, f"{NOTES[i]} {mode}"
 
-    # --- AJOUT SÉCURITÉ MAJEUR/MINEUR ---
     try:
         root_note = res_key.split(' ')[0]
         root_idx = NOTES.index(root_note)
-        m3_energy = chroma_avg[(root_idx + 3) % 12] # Tierce mineure
-        M3_energy = chroma_avg[(root_idx + 4) % 12] # Tierce majeure
+        m3_energy = chroma_avg[(root_idx + 3) % 12]
+        M3_energy = chroma_avg[(root_idx + 4) % 12]
         
         if "major" in res_key and m3_energy > (M3_energy * 1.15):
             res_key = f"{root_note} minor"
         elif "minor" in res_key and M3_energy > (m3_energy * 1.15):
             res_key = f"{root_note} major"
     except: pass
-    # ------------------------------------
 
     return res_key, best_score
 
-# --- MOTEUR ANALYSE OPTIMISÉ ---
 @st.cache_data(show_spinner="Analyse Harmonique Profonde...", max_entries=10)
 def get_full_analysis(file_bytes, file_name):
     y, sr = librosa.load(io.BytesIO(file_bytes), sr=22050, offset=30, duration=None)
