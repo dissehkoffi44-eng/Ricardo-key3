@@ -10,9 +10,10 @@ import requests
 import gc                             
 from scipy.signal import butter, lfilter
 
-# --- CONFIGURATION SÉCURISÉE ---
-TELEGRAM_TOKEN = "8513529075:AAGArnzI_6RtYX6WkZxmEfwtiFQdLqZG_to"
-CHAT_ID = "-1003647392401"
+# --- CONFIGURATION SÉCURISÉE (Via Secrets Streamlit) ---
+# Ces valeurs seront récupérées depuis votre tableau de bord Streamlit Cloud
+TELEGRAM_TOKEN = st.secrets.get("TELEGRAM_TOKEN")
+CHAT_ID = st.secrets.get("CHAT_ID")
 
 # --- CONFIGURATION PAGE & CSS ORIGINAL ---
 st.set_page_config(page_title="RCDJ228 ULTIME KEY", page_icon="🎧", layout="wide")
@@ -46,6 +47,8 @@ def get_camelot_pro(key_mode_str):
     except: return "??"
 
 def upload_to_telegram(file_buffer, filename, caption):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        return False
     try:
         file_buffer.seek(0)
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
